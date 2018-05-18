@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
-#include <unordered_set>
+#include <set>
 
 #ifndef _WIN32
 #   include <sys/ioctl.h>
@@ -14,6 +16,10 @@
 #endif
 
 namespace tlog {
+      ///////////////////////////////////////
+     /// Shared functions and interfaces ///
+    ///////////////////////////////////////
+
     inline std::string padTo(std::string str, size_t length, const char paddingChar = ' ') {
         if (length > str.size()) {
             str.insert(0, length - str.size(), paddingChar);
@@ -53,6 +59,30 @@ namespace tlog {
         }
     }
 
+    enum class ESeverity {
+        None,
+        Info,
+        Debug,
+        Warning,
+        Error,
+        Success,
+        Progress,
+    };
+
+    class IOutput {
+    public:
+        // No need to be beyond microseconds accuracy
+        using duration_t = std::chrono::microseconds;
+
+        virtual void WriteLine(ESeverity severity, const std::string& line) = 0;
+        virtual void WriteProgress(uint64_t current, uint64_t total, duration_t duration) = 0;
+    };
+
+
+      ///////////////////////////////
+     /// IOutput implementations ///
+    ///////////////////////////////
+
     namespace ansi {
         const std::string ESC = "\033";
 
@@ -82,61 +112,23 @@ namespace tlog {
         const std::string SHOW_CURSOR = ESC + "[?25h";
     }
 
-    class Logger {
+    class ConsoleOutput : public IOutput {
     public:
-        enum ESeverity {
-            None,
-            Info,
-            Debug,
-            Warning,
-            Error,
-            Success,
-            Progress,
-        };
-
-        enum EColor : unsigned char {
-            Black = 30,
-            Red = 31,
-            Green = 32,
-            Yellow = 33,
-            Blue = 34,
-            Magenta = 35,
-            Cyan = 36,
-            White = 37,
-        };
-
-        ~Logger() {
-            std::cout << ansi::RESET;
-        }
-
-        static std::unique_ptr<Logger>& Instance() {
-            static auto pLog = createLogger();
-            return pLog;
-        }
-
-
-        std::string wrapInColor(ESeverity severity, std::string string) {
-            // switch (severity) {
-            //     case None:                                                                break;
-            //     case Success:  textOut += ansi::GREEN        "SUCCESS  " ansi::RESET; break;
-            //     case Info:     textOut += ansi::CYAN         "INFO     " ansi::RESET; break;
-            //     case Warning:  textOut += ansi::BOLD_YELLOW  "WARNING  " ansi::RESET; break;
-            //     case Debug:    textOut += ansi::BOLD_CYAN    "DEBUG    " ansi::RESET; break;
-            //     case Error:    textOut += ansi::RED          "ERROR    " ansi::RESET; break;
-            //     case Progress: textOut += ansi::CYAN         "PROGRESS " ansi::RESET; break;
-            // }
-
-            return "";
-        }
-
-        void Log(ESeverity severity, const std::string& text) {
-            if (mHiddenTypes.count(severity)) {
-                return;
+        ~ConsoleOutput() {
+            if (mSupportsAnsiControlSequences) {
+                std::cout << ansi::RESET;
             }
+        }
 
+        static std::shared_ptr<ConsoleOutput>& Global() {
+            static auto consoleOutput = std::shared_ptr<ConsoleOutput>(new ConsoleOutput());
+            return consoleOutput;
+        }
+
+        void WriteLine(ESeverity severity, const std::string& line) override {
             std::string textOut;
 
-            if (severity != None) {
+            if (severity != ESeverity::None) {
                 using namespace std::chrono;
 
                 // Display time format
@@ -150,32 +142,52 @@ namespace tlog {
                 textOut += timeStr;
             }
 
-            switch (severity) {
-                case None:                                                               break;
-                case Success:  textOut += ansi::GREEN       + "SUCCESS  " + ansi::RESET; break;
-                case Info:     textOut += ansi::CYAN        + "INFO     " + ansi::RESET; break;
-                case Warning:  textOut += ansi::BOLD_YELLOW + "WARNING  " + ansi::RESET; break;
-                case Debug:    textOut += ansi::BOLD_CYAN   + "DEBUG    " + ansi::RESET; break;
-                case Error:    textOut += ansi::RED         + "ERROR    " + ansi::RESET; break;
-                case Progress: textOut += ansi::CYAN        + "PROGRESS " + ansi::RESET; break;
+            // Color for severities
+            if (mSupportsAnsiControlSequences) {
+                switch (severity) {
+                    case ESeverity::None:                                   break;
+                    case ESeverity::Success:  textOut += ansi::GREEN;       break;
+                    case ESeverity::Info:     textOut += ansi::CYAN;        break;
+                    case ESeverity::Warning:  textOut += ansi::BOLD_YELLOW; break;
+                    case ESeverity::Debug:    textOut += ansi::BOLD_CYAN;   break;
+                    case ESeverity::Error:    textOut += ansi::RED;         break;
+                    case ESeverity::Progress: textOut += ansi::CYAN;        break;
+                }
             }
 
-            // Reset after each message
-            textOut += text + ansi::ERASE_TO_END_OF_LINE + ansi::RESET;
+            // Severity itself
+            switch (severity) {
+                case ESeverity::None:                             break;
+                case ESeverity::Success:  textOut += "SUCCESS  "; break;
+                case ESeverity::Info:     textOut += "INFO     "; break;
+                case ESeverity::Warning:  textOut += "WARNING  "; break;
+                case ESeverity::Debug:    textOut += "DEBUG    "; break;
+                case ESeverity::Error:    textOut += "ERROR    "; break;
+                case ESeverity::Progress: textOut += "PROGRESS "; break;
+            }
+
+            if (mSupportsAnsiControlSequences && severity != ESeverity::None) {
+                textOut += ansi::RESET;
+            }
+
+            textOut += line;
+
+            if (mSupportsAnsiControlSequences) {
+                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::RESET;
+            }
 
             // Make sure there is a linebreak in the end. We don't want duplicates!
-            if (severity == Progress) {
+            if (mSupportsAnsiControlSequences && severity == ESeverity::Progress) {
                 textOut += ansi::LINE_BEGIN;
             } else if (textOut.empty() || textOut.back() != '\n') {
                 textOut += '\n';
             }
 
-            auto& stream = severity == Warning || severity == Error ? std::cerr : std::cout;
+            auto& stream = severity == ESeverity::Warning || severity == ESeverity::Error ? std::cerr : std::cout;
             stream << textOut << std::flush;
         }
 
-        template <typename T>
-        void LogProgress(uint64_t current, uint64_t total, T duration) {
+        void WriteProgress(uint64_t current, uint64_t total, duration_t duration) override {
             using namespace std;
 
             double fraction = (double)current / total;
@@ -222,44 +234,18 @@ namespace tlog {
 
             // Put everything together. Looks like so:
             // [=================>                         ]  69% ( 123/1337)     3s/17m03s
-            string message = string{"["} + body + "] " + label;
-
-            Log(Progress, message);
+            WriteLine(ESeverity::Progress, string{"["} + body + "] " + label);
         }
 
     private:
-        Logger() {
-#ifdef NDEBUG
-            hideType(Debug);
-#endif
-            mCanHandleControlCharacters = enableControlCharacters();
+        ConsoleOutput() {
+            mSupportsAnsiControlSequences = enableAnsiControlSequences();
+            if (mSupportsAnsiControlSequences) {
+                std::cout << ansi::RESET;
+            }
         }
 
-        static std::unique_ptr<Logger> createLogger() {
-            auto pLogger = std::unique_ptr<Logger>(new Logger());
-
-            std::cout << ansi::RESET;
-            pLogger->Log(Debug, "Program runs in debug mode.");
-
-            return pLogger;
-        }
-
-        static int consoleWidth() {
-#ifdef _WIN32
-            ansi::SCREEN_BUFFER_INFO csbi;
-            GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-            return csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#else
-            winsize size;
-            ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-            return size.ws_col;
-#endif
-        }
-
-        void hideType(ESeverity severity) { mHiddenTypes.insert(severity); }
-        void showType(ESeverity severity) { mHiddenTypes.erase(severity); }
-
-        static bool enableControlCharacters() {
+        static bool enableAnsiControlSequences() {
 #ifdef _WIN32
             // Set output mode to handle virtual terminal sequences
             HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -279,16 +265,84 @@ namespace tlog {
             return true;
         }
 
-        bool mCanHandleControlCharacters;
-        std::unordered_set<typename std::underlying_type<ESeverity>::type> mHiddenTypes;
+        static int consoleWidth() {
+#ifdef _WIN32
+            ansi::SCREEN_BUFFER_INFO csbi;
+            GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+            return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#else
+            winsize size;
+            ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+            return size.ws_col;
+#endif
+        }
+
+        bool mSupportsAnsiControlSequences;
+    };
+
+
+      /////////////////////////////////////////
+     /// Logger stuff for managing outputs ///
+    /////////////////////////////////////////
+
+    class Logger {
+    public:
+        Logger() {
+#ifdef NDEBUG
+            hideType(ESeverity::Debug);
+#endif
+        }
+
+        Logger(std::set<std::shared_ptr<IOutput>> outputs) : Logger() {
+            mOutputs = outputs;
+        }
+
+        static std::unique_ptr<Logger>& Global() {
+            static auto logger = std::unique_ptr<Logger>(new Logger({ConsoleOutput::Global()}));
+            return logger;
+        }
+
+        void Log(ESeverity severity, const std::string& line) {
+            if (mHiddenTypes.count(severity)) {
+                return;
+            }
+
+            for (auto& output : mOutputs) {
+                output->WriteLine(severity, line);
+            }
+        }
+
+        template <typename T>
+        void LogProgress(uint64_t current, uint64_t total, T duration) {
+            if (mHiddenTypes.count(ESeverity::Progress)) {
+                return;
+            }
+
+            IOutput::duration_t dur = std::chrono::duration_cast<IOutput::duration_t>(duration);
+            for (auto& output : mOutputs) {
+                output->WriteProgress(current, total, dur);
+            }
+        }
+
+        void addOutput(std::shared_ptr<IOutput>& output)    { mOutputs.insert(output); }
+        void removeOutput(std::shared_ptr<IOutput>& output) { mOutputs.erase(output); }
+
+        void hideType(ESeverity severity) { mHiddenTypes.insert(severity); }
+        void showType(ESeverity severity) { mHiddenTypes.erase(severity); }
+
+    private:
+        std::set<ESeverity> mHiddenTypes;
+        std::set<std::shared_ptr<IOutput>> mOutputs;
     };
 
     class LogStream {
     public:
-        LogStream(Logger::ESeverity severity) : mSeverity{severity} {}
+        LogStream(Logger* logger, ESeverity severity)
+        : mLogger{logger}, mSeverity{severity} {}
+
         LogStream(LogStream&& other) = default;
         ~LogStream() {
-            Logger::Instance()->Log(mSeverity, mText.str());
+            mLogger->Log(mSeverity, mText.str());
         }
 
         LogStream& operator=(LogStream&& other) = default;
@@ -300,23 +354,24 @@ namespace tlog {
         }
 
     private:
-        Logger::ESeverity mSeverity;
+        Logger* mLogger;
+        ESeverity mSeverity;
         std::ostringstream mText;
     };
 
-    inline LogStream Log(Logger::ESeverity severity) {
-        return LogStream{severity};
+    inline LogStream Log(ESeverity severity) {
+        return LogStream{Logger::Global().get(), severity};
     }
 
-    inline LogStream None()    { return Log(Logger::None); }
-    inline LogStream Info()    { return Log(Logger::Info); }
-    inline LogStream Debug()   { return Log(Logger::Debug); }
-    inline LogStream Warning() { return Log(Logger::Warning); }
-    inline LogStream Error()   { return Log(Logger::Error); }
-    inline LogStream Success() { return Log(Logger::Success); }
+    inline LogStream None()    { return Log(ESeverity::None); }
+    inline LogStream Info()    { return Log(ESeverity::Info); }
+    inline LogStream Debug()   { return Log(ESeverity::Debug); }
+    inline LogStream Warning() { return Log(ESeverity::Warning); }
+    inline LogStream Error()   { return Log(ESeverity::Error); }
+    inline LogStream Success() { return Log(ESeverity::Success); }
 
     template <typename T>
     void Progress(uint64_t current, uint64_t total, T duration) {
-        Logger::Instance()->LogProgress(current, total, duration);
+        Logger::Global()->LogProgress(current, total, duration);
     }
 }
