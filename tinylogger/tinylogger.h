@@ -179,7 +179,7 @@ namespace tlog {
             // Make sure there is a linebreak in the end. We don't want duplicates!
             if (mSupportsAnsiControlSequences && severity == ESeverity::Progress) {
                 textOut += ansi::LINE_BEGIN;
-            } else if (textOut.empty() || textOut.back() != '\n') {
+            } else {
                 textOut += '\n';
             }
 
