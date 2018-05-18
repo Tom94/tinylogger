@@ -74,8 +74,8 @@ namespace tlog {
         // No need to be beyond microseconds accuracy
         using duration_t = std::chrono::microseconds;
 
-        virtual void WriteLine(ESeverity severity, const std::string& line) = 0;
-        virtual void WriteProgress(uint64_t current, uint64_t total, duration_t duration) = 0;
+        virtual void writeLine(ESeverity severity, const std::string& line) = 0;
+        virtual void writeProgress(uint64_t current, uint64_t total, duration_t duration) = 0;
     };
 
 
@@ -120,12 +120,12 @@ namespace tlog {
             }
         }
 
-        static std::shared_ptr<ConsoleOutput>& Global() {
+        static std::shared_ptr<ConsoleOutput>& global() {
             static auto consoleOutput = std::shared_ptr<ConsoleOutput>(new ConsoleOutput());
             return consoleOutput;
         }
 
-        void WriteLine(ESeverity severity, const std::string& line) override {
+        void writeLine(ESeverity severity, const std::string& line) override {
             std::string textOut;
 
             if (severity != ESeverity::None) {
@@ -187,7 +187,7 @@ namespace tlog {
             stream << textOut << std::flush;
         }
 
-        void WriteProgress(uint64_t current, uint64_t total, duration_t duration) override {
+        void writeProgress(uint64_t current, uint64_t total, duration_t duration) override {
             using namespace std;
 
             double fraction = (double)current / total;
@@ -234,7 +234,7 @@ namespace tlog {
 
             // Put everything together. Looks like so:
             // [=================>                         ]  69% ( 123/1337)     3s/17m03s
-            WriteLine(ESeverity::Progress, string{"["} + body + "] " + label);
+            writeLine(ESeverity::Progress, string{"["} + body + "] " + label);
         }
 
     private:
@@ -297,30 +297,30 @@ namespace tlog {
             mOutputs = outputs;
         }
 
-        static std::unique_ptr<Logger>& Global() {
-            static auto logger = std::unique_ptr<Logger>(new Logger({ConsoleOutput::Global()}));
+        static std::unique_ptr<Logger>& global() {
+            static auto logger = std::unique_ptr<Logger>(new Logger({ConsoleOutput::global()}));
             return logger;
         }
 
-        void Log(ESeverity severity, const std::string& line) {
+        void log(ESeverity severity, const std::string& line) {
             if (mHiddenTypes.count(severity)) {
                 return;
             }
 
             for (auto& output : mOutputs) {
-                output->WriteLine(severity, line);
+                output->writeLine(severity, line);
             }
         }
 
         template <typename T>
-        void LogProgress(uint64_t current, uint64_t total, T duration) {
+        void logProgress(uint64_t current, uint64_t total, T duration) {
             if (mHiddenTypes.count(ESeverity::Progress)) {
                 return;
             }
 
             IOutput::duration_t dur = std::chrono::duration_cast<IOutput::duration_t>(duration);
             for (auto& output : mOutputs) {
-                output->WriteProgress(current, total, dur);
+                output->writeProgress(current, total, dur);
             }
         }
 
@@ -342,7 +342,7 @@ namespace tlog {
 
         LogStream(LogStream&& other) = default;
         ~LogStream() {
-            mLogger->Log(mSeverity, mText.str());
+            mLogger->log(mSeverity, mText.str());
         }
 
         LogStream& operator=(LogStream&& other) = default;
@@ -359,19 +359,19 @@ namespace tlog {
         std::ostringstream mText;
     };
 
-    inline LogStream Log(ESeverity severity) {
-        return LogStream{Logger::Global().get(), severity};
+    inline LogStream log(ESeverity severity) {
+        return LogStream{Logger::global().get(), severity};
     }
 
-    inline LogStream None()    { return Log(ESeverity::None); }
-    inline LogStream Info()    { return Log(ESeverity::Info); }
-    inline LogStream Debug()   { return Log(ESeverity::Debug); }
-    inline LogStream Warning() { return Log(ESeverity::Warning); }
-    inline LogStream Error()   { return Log(ESeverity::Error); }
-    inline LogStream Success() { return Log(ESeverity::Success); }
+    inline LogStream none()    { return log(ESeverity::None); }
+    inline LogStream info()    { return log(ESeverity::Info); }
+    inline LogStream debug()   { return log(ESeverity::Debug); }
+    inline LogStream warning() { return log(ESeverity::Warning); }
+    inline LogStream error()   { return log(ESeverity::Error); }
+    inline LogStream success() { return log(ESeverity::Success); }
 
     template <typename T>
-    void Progress(uint64_t current, uint64_t total, T duration) {
-        Logger::Global()->LogProgress(current, total, duration);
+    void progress(uint64_t current, uint64_t total, T duration) {
+        Logger::global()->logProgress(current, total, duration);
     }
 }
