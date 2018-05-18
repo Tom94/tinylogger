@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -20,11 +21,35 @@ namespace tlog {
      /// Shared functions and interfaces ///
     ///////////////////////////////////////
 
-    inline std::string padTo(std::string str, size_t length, const char paddingChar = ' ') {
+    // No need to be beyond microseconds accuracy
+    using duration_t = std::chrono::microseconds;
+
+
+    inline std::string padFromLeft(std::string str, size_t length, const char paddingChar = ' ') {
         if (length > str.size()) {
             str.insert(0, length - str.size(), paddingChar);
         }
         return str;
+    }
+
+    inline std::string padFromRight(std::string str, size_t length, const char paddingChar = ' ') {
+        if (length > str.size()) {
+            str.resize(length, paddingChar);
+        }
+        return str;
+    }
+
+    inline std::string timeToString(const std::string& fmt, time_t time) {
+        char timeStr[128];
+        if (std::strftime(timeStr, 128, fmt.c_str(), localtime(&time)) == 0) {
+            throw std::runtime_error{"Could not render local time."};
+        }
+
+        return timeStr;
+    }
+
+    inline std::string nowToString(const std::string& fmt) {
+        return timeToString(fmt, std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
     template <typename T>
@@ -42,21 +67,71 @@ namespace tlog {
         if (d.count() > 0) {
             return
                 to_string(d.count()) + "d" +
-                padTo(to_string(h.count()), 2, '0') + "h" +
-                padTo(to_string(m.count()), 2, '0') + "m" +
-                padTo(to_string(s.count()), 2, '0') + "s";
+                padFromLeft(to_string(h.count()), 2, '0') + "h" +
+                padFromLeft(to_string(m.count()), 2, '0') + "m" +
+                padFromLeft(to_string(s.count()), 2, '0') + "s";
         } else if (h.count() > 0) {
             return
                 to_string(h.count()) + "h" +
-                padTo(to_string(m.count()), 2, '0') + "m" +
-                padTo(to_string(s.count()), 2, '0') + "s";
+                padFromLeft(to_string(m.count()), 2, '0') + "m" +
+                padFromLeft(to_string(s.count()), 2, '0') + "s";
         } else if (m.count() > 0) {
             return
                 to_string(m.count()) + "m" +
-                padTo(to_string(s.count()), 2, '0') + "s";
+                padFromLeft(to_string(s.count()), 2, '0') + "s";
         } else {
             return to_string(s.count()) + "s";
         }
+    }
+
+    inline std::string progressBar(uint64_t current, uint64_t total, duration_t duration, int width) {
+        using namespace std;
+
+        double fraction = (double)current / total;
+
+        // Percentage display. Looks like so:
+        //  69%
+        int percentage = (int)std::round(fraction * 100);
+        string percentageStr = padFromLeft(to_string(percentage) + "%", 4);
+
+        // Fraction display. Looks like so:
+        // ( 123/1337)
+        string totalStr = to_string(total);
+        string fractionStr = padFromLeft(to_string(current) + "/" + totalStr, totalStr.size() * 2 + 1);
+
+        // Time display. Looks like so:
+        //     3s/17m03s
+        auto projectedDuration = duration * (1 / fraction);
+        auto projectedDurationStr = durationToString(projectedDuration);
+        string timeStr = padFromLeft(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
+
+        // Put the label together. Looks like so:
+        //  69% ( 123/1337)     3s/17m03s
+        string label = percentageStr + " (" + fractionStr + ") " + timeStr;
+
+        // Build the progress bar itself. Looks like so:
+        // [=================>                         ]
+        int usableWidth = max(0, width
+            - 2 // The surrounding [ and ]
+            - 1 // Space between progress bar and label
+            - (int)label.size() // Label itself
+            - 18 // Prefix
+        );
+
+        int numFilledChars = (int)round(usableWidth * fraction);
+
+        string body(usableWidth, ' ');
+        if (numFilledChars > 0) {
+            for (int i = 0; i < numFilledChars; ++i)
+                body[i] = '=';
+            if (numFilledChars < usableWidth) {
+                body[numFilledChars] = '>';
+            }
+        }
+
+        // Put everything together. Looks like so:
+        // [=================>                         ]  69% ( 123/1337)     3s/17m03s
+        return string{"["} + body + "] " + label;
     }
 
     enum class ESeverity {
@@ -69,10 +144,20 @@ namespace tlog {
         Progress,
     };
 
+    inline std::string severityToString(ESeverity severity) {
+        switch (severity) {
+            case ESeverity::None:     return "";
+            case ESeverity::Success:  return "SUCCESS";
+            case ESeverity::Info:     return "INFO";
+            case ESeverity::Warning:  return "WARNING";
+            case ESeverity::Debug:    return "DEBUG";
+            case ESeverity::Error:    return "ERROR";
+            case ESeverity::Progress: return "PROGRESS";
+        };
+    }
+
     class IOutput {
     public:
-        // No need to be beyond microseconds accuracy
-        using duration_t = std::chrono::microseconds;
 
         virtual void writeLine(ESeverity severity, const std::string& line) = 0;
         virtual void writeProgress(uint64_t current, uint64_t total, duration_t duration) = 0;
@@ -127,19 +212,8 @@ namespace tlog {
 
         void writeLine(ESeverity severity, const std::string& line) override {
             std::string textOut;
-
             if (severity != ESeverity::None) {
-                using namespace std::chrono;
-
-                // Display time format
-                const auto currentTime = system_clock::to_time_t(system_clock::now());
-
-                char timeStr[10];
-                if (std::strftime(timeStr, 10, "%H:%M:%S ", localtime(&currentTime)) == 0) {
-                    throw std::runtime_error{"Could not render local time."};
-                }
-
-                textOut += timeStr;
+                textOut += nowToString("%H:%M:%S ");
             }
 
             // Color for severities
@@ -155,16 +229,11 @@ namespace tlog {
                 }
             }
 
-            // Severity itself
-            switch (severity) {
-                case ESeverity::None:                             break;
-                case ESeverity::Success:  textOut += "SUCCESS  "; break;
-                case ESeverity::Info:     textOut += "INFO     "; break;
-                case ESeverity::Warning:  textOut += "WARNING  "; break;
-                case ESeverity::Debug:    textOut += "DEBUG    "; break;
-                case ESeverity::Error:    textOut += "ERROR    "; break;
-                case ESeverity::Progress: textOut += "PROGRESS "; break;
+            auto severityStr = severityToString(severity);
+            if (severity != ESeverity::None) {
+                severityStr = padFromRight(severityStr, 9);
             }
+            textOut += severityStr;
 
             if (mSupportsAnsiControlSequences && severity != ESeverity::None) {
                 textOut += ansi::RESET;
@@ -188,53 +257,7 @@ namespace tlog {
         }
 
         void writeProgress(uint64_t current, uint64_t total, duration_t duration) override {
-            using namespace std;
-
-            double fraction = (double)current / total;
-
-            // Percentage display. Looks like so:
-            //  69%
-            int percentage = (int)std::round(fraction * 100);
-            string percentageStr = padTo(to_string(percentage) + "%", 4);
-
-            // Fraction display. Looks like so:
-            // ( 123/1337)
-            string totalStr = to_string(total);
-            string fractionStr = padTo(to_string(current) + "/" + totalStr, totalStr.size() * 2 + 1);
-
-            // Time display. Looks like so:
-            //     3s/17m03s
-            auto projectedDuration = duration * (1 / fraction);
-            auto projectedDurationStr = durationToString(projectedDuration);
-            string timeStr = padTo(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
-
-            // Put the label together. Looks like so:
-            //  69% ( 123/1337)     3s/17m03s
-            string label = percentageStr + " (" + fractionStr + ") " + timeStr;
-
-            // Build the progress bar itself. Looks like so:
-            // [=================>                         ]
-            int usableWidth = max(0, consoleWidth()
-                - 2 // The surrounding [ and ]
-                - 1 // Space between progress bar and label
-                - (int)label.size() // Label itself
-                - 18 // Prefix
-            );
-
-            int numFilledChars = (int)round(usableWidth * fraction);
-
-            string body(usableWidth, ' ');
-            if (numFilledChars > 0) {
-                for (int i = 0; i < numFilledChars; ++i)
-                    body[i] = '=';
-                if (numFilledChars < usableWidth) {
-                    body[numFilledChars] = '>';
-                }
-            }
-
-            // Put everything together. Looks like so:
-            // [=================>                         ]  69% ( 123/1337)     3s/17m03s
-            writeLine(ESeverity::Progress, string{"["} + body + "] " + label);
+            writeLine(ESeverity::Progress, progressBar(current, total, duration, consoleWidth()));
         }
 
     private:
@@ -261,7 +284,6 @@ namespace tlog {
                 return false;
             }
 #endif
-
             return true;
         }
 
@@ -278,6 +300,38 @@ namespace tlog {
         }
 
         bool mSupportsAnsiControlSequences;
+    };
+
+    class FileOutput : public IOutput {
+    public:
+        FileOutput(const char* filename) : mFile{filename} {}
+        FileOutput(const std::string& filename) : mFile{filename} {}
+#ifdef _WIN32
+        FileOutput(const std::wstring& filename) : mFile{filename} {}
+#endif
+        FileOutput(std::ofstream&& file) : mFile{std::move(file)} {}
+
+        void writeLine(ESeverity severity, const std::string& line) override {
+            std::string textOut;
+            if (severity != ESeverity::None) {
+                textOut += nowToString("%H:%M:%S ");
+            }
+
+            textOut += severityToString(severity);
+            if (severity != ESeverity::None) {
+                textOut += ' ';
+            }
+
+            textOut += line + '\n';
+            mFile << textOut;
+        }
+
+        void writeProgress(uint64_t current, uint64_t total, duration_t duration) override {
+            writeLine(ESeverity::Progress, progressBar(current, total, duration, 80));
+        }
+
+    private:
+        std::ofstream mFile;
     };
 
 
@@ -318,7 +372,7 @@ namespace tlog {
                 return;
             }
 
-            IOutput::duration_t dur = std::chrono::duration_cast<IOutput::duration_t>(duration);
+            duration_t dur = std::chrono::duration_cast<duration_t>(duration);
             for (auto& output : mOutputs) {
                 output->writeProgress(current, total, dur);
             }
