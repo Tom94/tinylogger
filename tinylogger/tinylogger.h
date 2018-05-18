@@ -14,9 +14,42 @@
 #endif
 
 namespace tlog {
-    inline void padTo(std::string& str, size_t length, const char paddingChar = ' ') {
+    inline std::string padTo(std::string str, size_t length, const char paddingChar = ' ') {
         if (length > str.size()) {
             str.insert(0, length - str.size(), paddingChar);
+        }
+        return str;
+    }
+
+    template <typename T>
+    std::string durationToString(T dur)
+    {
+        using namespace std;
+        using namespace std::chrono;
+        using day_t = duration<long long, std::ratio<3600 * 24>>;
+
+        auto d = duration_cast<day_t>(dur);
+        auto h = duration_cast<hours>(dur -= d);
+        auto m = duration_cast<minutes>(dur -= h);
+        auto s = duration_cast<seconds>(dur -= m);
+
+        if (d.count() > 0) {
+            return
+                to_string(d.count()) + "d" +
+                padTo(to_string(h.count()), 2, '0') + "h" +
+                padTo(to_string(m.count()), 2, '0') + "m" +
+                padTo(to_string(s.count()), 2, '0') + "s";
+        } else if (h.count() > 0) {
+            return
+                to_string(h.count()) + "h" +
+                padTo(to_string(m.count()), 2, '0') + "m" +
+                padTo(to_string(s.count()), 2, '0') + "s";
+        } else if (m.count() > 0) {
+            return
+                to_string(m.count()) + "m" +
+                padTo(to_string(s.count()), 2, '0') + "s";
+        } else {
+            return to_string(s.count()) + "s";
         }
     }
 
@@ -150,21 +183,18 @@ namespace tlog {
             // Percentage display. Looks like so:
             //  69%
             int percentage = (int)std::round(fraction * 100);
-            string percentageStr = to_string(percentage) + "%";
-            padTo(percentageStr, 4);
+            string percentageStr = padTo(to_string(percentage) + "%", 4);
 
             // Fraction display. Looks like so:
             // ( 123/1337)
             string totalStr = to_string(total);
-            string fractionStr = to_string(current) + "/" + totalStr;
-            padTo(fractionStr, totalStr.size() * 2 + 1);
+            string fractionStr = padTo(to_string(current) + "/" + totalStr, totalStr.size() * 2 + 1);
 
             // Time display. Looks like so:
             //     3s/17m03s
             auto projectedDuration = duration * (1 / fraction);
             auto projectedDurationStr = durationToString(projectedDuration);
-            string timeStr = durationToString(duration) + "/" + projectedDurationStr;
-            padTo(timeStr, projectedDurationStr.size() * 2 + 1);
+            string timeStr = padTo(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
 
             // Put the label together. Looks like so:
             //  69% ( 123/1337)     3s/17m03s
