@@ -14,7 +14,6 @@
 #include <set>
 
 #ifdef _WIN32
-#   define _CRT_SECURE_NO_WARNINGS
 #   define NOMINMAX
 #   include <Windows.h>
 #   undef NOMINMAX
@@ -293,7 +292,7 @@ namespace tlog {
 
         static int consoleWidth() {
 #ifdef _WIN32
-            SCREEN_BUFFER_INFO csbi;
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             return csbi.srWindow.Right - csbi.srWindow.Left + 1;
 #else
