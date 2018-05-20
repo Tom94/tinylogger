@@ -149,13 +149,13 @@ namespace tlog {
 
     inline std::string severityToString(ESeverity severity) {
         switch (severity) {
-            case ESeverity::None:     return "";
             case ESeverity::Success:  return "SUCCESS";
             case ESeverity::Info:     return "INFO";
             case ESeverity::Warning:  return "WARNING";
             case ESeverity::Debug:    return "DEBUG";
             case ESeverity::Error:    return "ERROR";
             case ESeverity::Progress: return "PROGRESS";
+            default:                  return "";
         };
     }
 
