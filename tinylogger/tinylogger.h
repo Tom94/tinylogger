@@ -56,7 +56,6 @@ namespace tlog {
     template <typename T>
     std::string durationToString(T dur)
     {
-        using namespace std;
         using namespace std::chrono;
         using day_t = duration<long long, std::ratio<3600 * 24>>;
 
@@ -67,52 +66,50 @@ namespace tlog {
 
         if (d.count() > 0) {
             return
-                to_string(d.count()) + "d" +
-                padFromLeft(to_string(h.count()), 2, '0') + "h" +
-                padFromLeft(to_string(m.count()), 2, '0') + "m" +
-                padFromLeft(to_string(s.count()), 2, '0') + "s";
+                std::to_string(d.count()) + "d" +
+                padFromLeft(std::to_string(h.count()), 2, '0') + "h" +
+                padFromLeft(std::to_string(m.count()), 2, '0') + "m" +
+                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
         } else if (h.count() > 0) {
             return
-                to_string(h.count()) + "h" +
-                padFromLeft(to_string(m.count()), 2, '0') + "m" +
-                padFromLeft(to_string(s.count()), 2, '0') + "s";
+                std::to_string(h.count()) + "h" +
+                padFromLeft(std::to_string(m.count()), 2, '0') + "m" +
+                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
         } else if (m.count() > 0) {
             return
-                to_string(m.count()) + "m" +
-                padFromLeft(to_string(s.count()), 2, '0') + "s";
+                std::to_string(m.count()) + "m" +
+                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
         } else {
-            return to_string(s.count()) + "s";
+            return std::to_string(s.count()) + "s";
         }
     }
 
     inline std::string progressBar(uint64_t current, uint64_t total, duration_t duration, int width) {
-        using namespace std;
-
         double fraction = (double)current / total;
 
         // Percentage display. Looks like so:
         //  69%
         int percentage = (int)std::round(fraction * 100);
-        string percentageStr = padFromLeft(to_string(percentage) + "%", 4);
+        std::string percentageStr = padFromLeft(std::to_string(percentage) + "%", 4);
 
         // Fraction display. Looks like so:
         // ( 123/1337)
-        string totalStr = to_string(total);
-        string fractionStr = padFromLeft(to_string(current) + "/" + totalStr, totalStr.size() * 2 + 1);
+        std::string totalStr = std::to_string(total);
+        std::string fractionStr = padFromLeft(std::to_string(current) + "/" + totalStr, totalStr.size() * 2 + 1);
 
         // Time display. Looks like so:
         //     3s/17m03s
         auto projectedDuration = duration * (1 / fraction);
         auto projectedDurationStr = durationToString(projectedDuration);
-        string timeStr = padFromLeft(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
+        std::string timeStr = padFromLeft(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
 
         // Put the label together. Looks like so:
         //  69% ( 123/1337)     3s/17m03s
-        string label = percentageStr + " (" + fractionStr + ") " + timeStr;
+        std::string label = percentageStr + " (" + fractionStr + ") " + timeStr;
 
         // Build the progress bar itself. Looks like so:
         // [=================>                         ]
-        int usableWidth = max(0, width
+        int usableWidth = std::max(0, width
             - 2 // The surrounding [ and ]
             - 1 // Space between progress bar and label
             - (int)label.size() // Label itself
@@ -121,7 +118,7 @@ namespace tlog {
 
         int numFilledChars = (int)round(usableWidth * fraction);
 
-        string body(usableWidth, ' ');
+        std::string body(usableWidth, ' ');
         if (numFilledChars > 0) {
             for (int i = 0; i < numFilledChars; ++i)
                 body[i] = '=';
@@ -132,7 +129,7 @@ namespace tlog {
 
         // Put everything together. Looks like so:
         // [=================>                         ]  69% ( 123/1337)     3s/17m03s
-        return string{"["} + body + "] " + label;
+        return std::string{"["} + body + "] " + label;
     }
 
     enum class ESeverity {
