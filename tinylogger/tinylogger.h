@@ -12,7 +12,11 @@
 #include <sstream>
 #include <set>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#   define NOMINMAX
+#   include <Windows.h>
+#   undef NOMINMAX
+#else
 #   include <sys/ioctl.h>
 #   include <unistd.h>
 #endif
