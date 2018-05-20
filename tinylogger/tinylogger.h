@@ -310,7 +310,10 @@ namespace tlog {
 #ifdef _WIN32
         FileOutput(const std::wstring& filename) : mFile{filename} {}
 #endif
+
+#if !defined(__GNUC__) || __GNUC__ >= 5
         FileOutput(std::ofstream&& file) : mFile{std::move(file)} {}
+#endif
 
         void writeLine(ESeverity severity, const std::string& line) override {
             std::string textOut;
@@ -393,25 +396,27 @@ namespace tlog {
     class LogStream {
     public:
         LogStream(Logger* logger, ESeverity severity)
-        : mLogger{logger}, mSeverity{severity} {}
+        : mLogger{logger}, mSeverity{severity}, mText{new std::ostringstream{}} {}
 
         LogStream(LogStream&& other) = default;
         ~LogStream() {
-            mLogger->log(mSeverity, mText.str());
+            if (mText) {
+                mLogger->log(mSeverity, mText->str());
+            }
         }
 
         LogStream& operator=(LogStream&& other) = default;
 
         template <typename T>
         LogStream& operator<<(const T& elem) {
-            mText << elem;
+            *mText << elem;
             return *this;
         }
 
     private:
         Logger* mLogger;
         ESeverity mSeverity;
-        std::ostringstream mText;
+        std::unique_ptr<std::ostringstream> mText;
     };
 
     inline LogStream log(ESeverity severity) {
