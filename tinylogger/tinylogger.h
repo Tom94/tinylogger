@@ -226,9 +226,9 @@ namespace tlog {
                     case ESeverity::Success:  textOut += ansi::GREEN;       break;
                     case ESeverity::Info:     textOut += ansi::CYAN;        break;
                     case ESeverity::Warning:  textOut += ansi::BOLD_YELLOW; break;
-                    case ESeverity::Debug:    textOut += ansi::BOLD_CYAN;   break;
-                    case ESeverity::Error:    textOut += ansi::RED;         break;
-                    case ESeverity::Progress: textOut += ansi::CYAN;        break;
+                    case ESeverity::Debug:    textOut += ansi::MAGENTA;     break;
+                    case ESeverity::Error:    textOut += ansi::BOLD_RED;    break;
+                    case ESeverity::Progress: textOut += ansi::BLUE;        break;
                 }
             }
 
