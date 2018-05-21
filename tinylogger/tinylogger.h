@@ -313,6 +313,8 @@ namespace tlog {
         FileOutput(const std::wstring& filename) : mFile{filename} {}
 #endif
 
+// GCC <5 has a buggy std implementation where ostream does not have
+// a move constructor even though it should according to C++11 spec.
 #if !defined(__GNUC__) || __GNUC__ >= 5
         FileOutput(std::ofstream&& file) : mFile{std::move(file)} {}
 #endif
