@@ -344,6 +344,29 @@ namespace tlog {
       /////////////////////////////////////////
      /// Logger stuff for managing outputs ///
     /////////////////////////////////////////
+    class Logger;
+
+    class LogStream {
+    public:
+        LogStream(Logger* logger, ESeverity severity)
+        : mLogger{logger}, mSeverity{severity}, mText{new std::ostringstream{}} {}
+
+        LogStream(LogStream&& other) = default;
+        ~LogStream();
+
+        LogStream& operator=(LogStream&& other) = default;
+
+        template <typename T>
+        LogStream& operator<<(const T& elem) {
+            *mText << elem;
+            return *this;
+        }
+
+    private:
+        Logger* mLogger;
+        ESeverity mSeverity;
+        std::unique_ptr<std::ostringstream> mText;
+    };
 
     class Logger {
     public:
@@ -362,6 +385,15 @@ namespace tlog {
             return logger;
         }
 
+        LogStream log(ESeverity severity) { return LogStream{this, severity}; }
+
+        LogStream none()    { return log(ESeverity::None);    }
+        LogStream info()    { return log(ESeverity::Info);    }
+        LogStream debug()   { return log(ESeverity::Debug);   }
+        LogStream warning() { return log(ESeverity::Warning); }
+        LogStream error()   { return log(ESeverity::Error);   }
+        LogStream success() { return log(ESeverity::Success); }
+
         void log(ESeverity severity, const std::string& line) {
             if (mHiddenTypes.count(severity)) {
                 return;
@@ -371,6 +403,13 @@ namespace tlog {
                 output->writeLine(severity, line);
             }
         }
+
+        void none(const std::string& line)    { log(ESeverity::None,    line); }
+        void info(const std::string& line)    { log(ESeverity::Info,    line); }
+        void debug(const std::string& line)   { log(ESeverity::Debug,   line); }
+        void warning(const std::string& line) { log(ESeverity::Warning, line); }
+        void error(const std::string& line)   { log(ESeverity::Error,   line); }
+        void success(const std::string& line) { log(ESeverity::Success, line); }
 
         template <typename T>
         void logProgress(uint64_t current, uint64_t total, T duration) {
@@ -395,42 +434,31 @@ namespace tlog {
         std::set<std::shared_ptr<IOutput>> mOutputs;
     };
 
-    class LogStream {
-    public:
-        LogStream(Logger* logger, ESeverity severity)
-        : mLogger{logger}, mSeverity{severity}, mText{new std::ostringstream{}} {}
-
-        LogStream(LogStream&& other) = default;
-        ~LogStream() {
-            if (mText) {
-                mLogger->log(mSeverity, mText->str());
-            }
+    inline LogStream::~LogStream() {
+        if (mText) {
+            mLogger->log(mSeverity, mText->str());
         }
-
-        LogStream& operator=(LogStream&& other) = default;
-
-        template <typename T>
-        LogStream& operator<<(const T& elem) {
-            *mText << elem;
-            return *this;
-        }
-
-    private:
-        Logger* mLogger;
-        ESeverity mSeverity;
-        std::unique_ptr<std::ostringstream> mText;
-    };
-
-    inline LogStream log(ESeverity severity) {
-        return LogStream{Logger::global().get(), severity};
     }
 
-    inline LogStream none()    { return log(ESeverity::None); }
-    inline LogStream info()    { return log(ESeverity::Info); }
-    inline LogStream debug()   { return log(ESeverity::Debug); }
-    inline LogStream warning() { return log(ESeverity::Warning); }
-    inline LogStream error()   { return log(ESeverity::Error); }
-    inline LogStream success() { return log(ESeverity::Success); }
+    inline LogStream log(ESeverity severity) { return Logger::global()->log(severity); }
+
+    inline LogStream none()    { return Logger::global()->none();    }
+    inline LogStream info()    { return Logger::global()->info();    }
+    inline LogStream debug()   { return Logger::global()->debug();   }
+    inline LogStream warning() { return Logger::global()->warning(); }
+    inline LogStream error()   { return Logger::global()->error();   }
+    inline LogStream success() { return Logger::global()->success(); }
+
+    inline void log(ESeverity severity, const std::string& line) {
+        Logger::global()->log(severity, line);
+    }
+
+    inline void none(const std::string& line)    { Logger::global()->none(line);    }
+    inline void info(const std::string& line)    { Logger::global()->info(line);    }
+    inline void debug(const std::string& line)   { Logger::global()->debug(line);   }
+    inline void warning(const std::string& line) { Logger::global()->warning(line); }
+    inline void error(const std::string& line)   { Logger::global()->error(line);   }
+    inline void success(const std::string& line) { Logger::global()->success(line); }
 
     template <typename T>
     void progress(uint64_t current, uint64_t total, T duration) {
