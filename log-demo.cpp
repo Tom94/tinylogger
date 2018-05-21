@@ -3,7 +3,15 @@
 #include <chrono>
 #include <thread>
 
+void verifySameOutput() {
+    tlog::info() << "Info test";
+    tlog::Logger::global()->info() << "Info test";
+    tlog::Logger::global()->log(tlog::ESeverity::Info) << "Info test";
+}
+
 int main() {
+    verifySameOutput();
+
     tlog::none()
         << "===========================================\n"
         << "===== tinylogger demo =====================\n"
@@ -26,11 +34,13 @@ int main() {
     tlog::info() << "Demonstrating a progress bar...";
 
     static const int N = 100;
-    auto now = std::chrono::steady_clock::now();
+    auto progress = tlog::progress(N);
     for (int i = 1; i <= N; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
-        tlog::progress(i, N, std::chrono::steady_clock::now() - now);
+        progress.update(i);
     }
+
+    tlog::success() << "Progress finished after " << tlog::durationToString(progress.duration());
 
     tlog::success() << "The demo application terminated successfully. Hooray!";
 }
