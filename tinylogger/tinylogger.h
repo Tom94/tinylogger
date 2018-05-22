@@ -30,7 +30,6 @@ namespace tlog {
     // No need to be beyond microseconds accuracy
     using duration_t = std::chrono::microseconds;
 
-
     inline std::string padFromLeft(std::string str, size_t length, const char paddingChar = ' ') {
         if (length > str.size()) {
             str.insert(0, length - str.size(), paddingChar);
@@ -59,8 +58,7 @@ namespace tlog {
     }
 
     template <typename T>
-    std::string durationToString(T dur)
-    {
+    std::string durationToString(T dur) {
         using namespace std::chrono;
         using day_t = duration<long long, std::ratio<3600 * 24>>;
 
@@ -71,21 +69,21 @@ namespace tlog {
 
         if (d.count() > 0) {
             return
-                std::to_string(d.count()) + "d" +
-                padFromLeft(std::to_string(h.count()), 2, '0') + "h" +
-                padFromLeft(std::to_string(m.count()), 2, '0') + "m" +
-                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
+                std::to_string(d.count()) + 'd' +
+                padFromLeft(std::to_string(h.count()), 2, '0') + 'h' +
+                padFromLeft(std::to_string(m.count()), 2, '0') + 'm' +
+                padFromLeft(std::to_string(s.count()), 2, '0') + 's';
         } else if (h.count() > 0) {
             return
-                std::to_string(h.count()) + "h" +
-                padFromLeft(std::to_string(m.count()), 2, '0') + "m" +
-                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
+                std::to_string(h.count()) + 'h' +
+                padFromLeft(std::to_string(m.count()), 2, '0') + 'm' +
+                padFromLeft(std::to_string(s.count()), 2, '0') + 's';
         } else if (m.count() > 0) {
             return
-                std::to_string(m.count()) + "m" +
-                padFromLeft(std::to_string(s.count()), 2, '0') + "s";
+                std::to_string(m.count()) + 'm' +
+                padFromLeft(std::to_string(s.count()), 2, '0') + 's';
         } else {
-            return std::to_string(s.count()) + "s";
+            return std::to_string(s.count()) + 's';
         }
     }
 
