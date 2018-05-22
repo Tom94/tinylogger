@@ -391,15 +391,14 @@ namespace tlog {
 
     class Logger {
     public:
-        Logger() {
+        Logger(std::string scope = "", std::set<std::shared_ptr<IOutput>> outputs = {})
+        : mOutputs{outputs}, mScope{scope} {
 #ifdef NDEBUG
-            hideType(ESeverity::Debug);
+            hideSeverity(ESeverity::Debug);
 #endif
         }
 
-        Logger(std::set<std::shared_ptr<IOutput>> outputs) : Logger() {
-            mOutputs = outputs;
-        }
+        Logger(std::set<std::shared_ptr<IOutput>> outputs) : Logger("", outputs) {}
 
         static std::unique_ptr<Logger>& global() {
             static auto logger = std::unique_ptr<Logger>(new Logger({ConsoleOutput::global()}));
@@ -416,7 +415,7 @@ namespace tlog {
         Stream success() { return log(ESeverity::Success); }
 
         void log(ESeverity severity, const std::string& line) {
-            if (mHiddenTypes.count(severity)) {
+            if (mHiddenSeverities.count(severity)) {
                 return;
             }
 
@@ -438,7 +437,7 @@ namespace tlog {
 
         template <typename T>
         void progress(uint64_t current, uint64_t total, T duration) {
-            if (mHiddenTypes.count(ESeverity::Progress)) {
+            if (mHiddenSeverities.count(ESeverity::Progress)) {
                 return;
             }
 
@@ -448,15 +447,21 @@ namespace tlog {
             }
         }
 
-        void addOutput(std::shared_ptr<IOutput>& output)    { mOutputs.insert(output); }
-        void removeOutput(std::shared_ptr<IOutput>& output) { mOutputs.erase(output); }
+        void hideSeverity(ESeverity severity) { mHiddenSeverities.insert(severity); }
+        void showSeverity(ESeverity severity) { mHiddenSeverities.erase(severity); }
+        const std::set<ESeverity>& hiddenSeverities() const { return mHiddenSeverities; }
 
-        void hideType(ESeverity severity) { mHiddenTypes.insert(severity); }
-        void showType(ESeverity severity) { mHiddenTypes.erase(severity); }
+        void addOutput(std::shared_ptr<IOutput>& output) { mOutputs.insert(output); }
+        void removeOutput(std::shared_ptr<IOutput>& output) { mOutputs.erase(output); }
+        const std::set<std::shared_ptr<IOutput>>& outputs() const { return mOutputs; }
+
+        void setScope(const std::string& scope) { mScope = scope; }
+        const std::string& scope() const { return mScope; }
 
     private:
-        std::set<ESeverity> mHiddenTypes;
+        std::set<ESeverity> mHiddenSeverities;
         std::set<std::shared_ptr<IOutput>> mOutputs;
+        std::string mScope;
     };
 
     inline Stream::~Stream() {
