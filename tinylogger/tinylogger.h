@@ -277,9 +277,20 @@ namespace tlog {
 
         void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
             int progressBarWidth = consoleWidth() - 18; // 18 is the width of the time string and severity
+
             if (!scope.empty()) {
                 progressBarWidth -= 3 + (int)scope.size();
             }
+
+// Due to a bug in windows' ANSI sequence handling the last character of the line is erased
+// if a clear-to-end-of-line is issued while the cursor is after the last character of a line
+// (i.e. if the control character would be on a new line if it was a regular character).
+#ifdef _WIN32
+            if (mSupportsAnsiControlSequences) {
+                progressBarWidth -= 1;
+            }
+#endif
+
             progressBarWidth = std::max(0, progressBarWidth);
 
             writeLine(scope, ESeverity::Progress, progressBar(current, total, duration, progressBarWidth));
