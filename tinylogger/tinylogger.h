@@ -509,7 +509,7 @@ namespace tlog {
 
     inline void Progress::update(uint64_t current) {
         mCurrent = current;
-        mLogger->progress(current, mTotal, std::chrono::steady_clock::now() - mStartTime);
+        mLogger->progress(current, mTotal, duration());
     }
 
     inline Stream log(ESeverity severity) { return Logger::global()->log(severity); }
