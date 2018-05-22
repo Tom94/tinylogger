@@ -102,8 +102,13 @@ namespace tlog {
 
         // Time display. Looks like so:
         //     3s/17m03s
-        auto projectedDuration = duration * (1 / fraction);
-        auto projectedDurationStr = durationToString(projectedDuration);
+        std::string projectedDurationStr;
+        if (current == 0) {
+            projectedDurationStr = "inf";
+        } else {
+            auto projectedDuration = duration * (1 / fraction);
+            projectedDurationStr = durationToString(projectedDuration);
+        }
         std::string timeStr = padFromLeft(durationToString(duration) + "/" + projectedDurationStr, projectedDurationStr.size() * 2 + 1);
 
         // Put the label together. Looks like so:
