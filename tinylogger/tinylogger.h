@@ -267,7 +267,7 @@ namespace tlog {
         void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
             int progressBarWidth = consoleWidth() - 18; // 18 is the width of the time string and severity
             if (!scope.empty()) {
-                progressBarWidth -= 3 + scope.size();
+                progressBarWidth -= 3 + (int)scope.size();
             }
             progressBarWidth = std::max(0, progressBarWidth);
 
