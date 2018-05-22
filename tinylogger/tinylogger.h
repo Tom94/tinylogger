@@ -118,7 +118,6 @@ namespace tlog {
             - 2 // The surrounding [ and ]
             - 1 // Space between progress bar and label
             - (int)label.size() // Label itself
-            - 18 // Prefix
         );
 
         int numFilledChars = (int)std::round(usableWidth * fraction);
@@ -161,9 +160,8 @@ namespace tlog {
 
     class IOutput {
     public:
-
-        virtual void writeLine(ESeverity severity, const std::string& line) = 0;
-        virtual void writeProgress(uint64_t current, uint64_t total, duration_t duration) = 0;
+        virtual void writeLine(const std::string& scope, ESeverity severity, const std::string& line) = 0;
+        virtual void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) = 0;
     };
 
 
@@ -174,7 +172,6 @@ namespace tlog {
     namespace ansi {
         const std::string ESC = "\033";
 
-        const std::string RESET = ESC + "[0;37m";
         const std::string LINE_BEGIN = ESC + "[0G";
         const std::string ERASE_TO_END_OF_LINE = ESC + "[K";
 
@@ -204,7 +201,7 @@ namespace tlog {
     public:
         ~ConsoleOutput() {
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::RESET;
+                std::cout << ansi::WHITE;
             }
         }
 
@@ -213,7 +210,7 @@ namespace tlog {
             return consoleOutput;
         }
 
-        void writeLine(ESeverity severity, const std::string& line) override {
+        void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
             std::string textOut;
             if (severity != ESeverity::None) {
                 textOut += nowToString("%H:%M:%S ");
@@ -222,13 +219,13 @@ namespace tlog {
             // Color for severities
             if (mSupportsAnsiControlSequences) {
                 switch (severity) {
-                    case ESeverity::None:                                   break;
                     case ESeverity::Success:  textOut += ansi::GREEN;       break;
                     case ESeverity::Info:     textOut += ansi::CYAN;        break;
                     case ESeverity::Warning:  textOut += ansi::BOLD_YELLOW; break;
                     case ESeverity::Debug:    textOut += ansi::MAGENTA;     break;
                     case ESeverity::Error:    textOut += ansi::BOLD_RED;    break;
                     case ESeverity::Progress: textOut += ansi::BLUE;        break;
+                    default:                                                break;
                 }
             }
 
@@ -238,14 +235,22 @@ namespace tlog {
             }
             textOut += severityStr;
 
+            if (!scope.empty()) {
+                if (mSupportsAnsiControlSequences) {
+                    textOut += ansi::BOLD_WHITE;
+                }
+
+                textOut += std::string{'['} + scope + "] ";
+            }
+
             if (mSupportsAnsiControlSequences && severity != ESeverity::None) {
-                textOut += ansi::RESET;
+                textOut += ansi::WHITE;
             }
 
             textOut += line;
 
             if (mSupportsAnsiControlSequences) {
-                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::RESET;
+                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::WHITE;
             }
 
             // Make sure there is a linebreak in the end. We don't want duplicates!
@@ -259,15 +264,21 @@ namespace tlog {
             stream << textOut << std::flush;
         }
 
-        void writeProgress(uint64_t current, uint64_t total, duration_t duration) override {
-            writeLine(ESeverity::Progress, progressBar(current, total, duration, consoleWidth()));
+        void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
+            int progressBarWidth = consoleWidth() - 18; // 18 is the width of the time string and severity
+            if (!scope.empty()) {
+                progressBarWidth -= 3 + scope.size();
+            }
+            progressBarWidth = std::max(0, progressBarWidth);
+
+            writeLine(scope, ESeverity::Progress, progressBar(current, total, duration, progressBarWidth));
         }
 
     private:
         ConsoleOutput() {
             mSupportsAnsiControlSequences = enableAnsiControlSequences();
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::RESET;
+                std::cout << ansi::WHITE;
             }
         }
 
@@ -319,10 +330,14 @@ namespace tlog {
         FileOutput(std::ofstream&& file) : mFile{std::move(file)} {}
 #endif
 
-        void writeLine(ESeverity severity, const std::string& line) override {
+        void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
             std::string textOut;
             if (severity != ESeverity::None) {
                 textOut += nowToString("%H:%M:%S ");
+            }
+
+            if (!scope.empty()) {
+                textOut += std::string{'['} + scope + "] ";
             }
 
             textOut += severityToString(severity);
@@ -334,8 +349,8 @@ namespace tlog {
             mFile << textOut;
         }
 
-        void writeProgress(uint64_t current, uint64_t total, duration_t duration) override {
-            writeLine(ESeverity::Progress, progressBar(current, total, duration, 80));
+        void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
+            writeLine(scope, ESeverity::Progress, progressBar(current, total, duration, 80));
         }
 
     private:
@@ -391,7 +406,7 @@ namespace tlog {
 
     class Logger {
     public:
-        Logger(std::string scope = "", std::set<std::shared_ptr<IOutput>> outputs = {})
+        Logger(std::string scope = "", std::set<std::shared_ptr<IOutput>> outputs = {ConsoleOutput::global()})
         : mOutputs{outputs}, mScope{scope} {
 #ifdef NDEBUG
             hideSeverity(ESeverity::Debug);
@@ -420,7 +435,7 @@ namespace tlog {
             }
 
             for (auto& output : mOutputs) {
-                output->writeLine(severity, line);
+                output->writeLine(mScope, severity, line);
             }
         }
 
@@ -443,7 +458,7 @@ namespace tlog {
 
             duration_t dur = std::chrono::duration_cast<duration_t>(duration);
             for (auto& output : mOutputs) {
-                output->writeProgress(current, total, dur);
+                output->writeProgress(mScope, current, total, dur);
             }
         }
 

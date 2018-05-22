@@ -3,15 +3,7 @@
 #include <chrono>
 #include <thread>
 
-void verifySameOutput() {
-    tlog::info() << "Info test";
-    tlog::Logger::global()->info() << "Info test";
-    tlog::Logger::global()->log(tlog::ESeverity::Info) << "Info test";
-}
-
 int main() {
-    verifySameOutput();
-
     tlog::none()
         << "===========================================\n"
         << "===== tinylogger demo =====================\n"
@@ -34,6 +26,7 @@ int main() {
     tlog::info() << "Demonstrating a progress bar...";
 
     static const int N = 100;
+
     auto progress = tlog::progress(N);
     for (int i = 1; i <= N; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
@@ -41,6 +34,15 @@ int main() {
     }
 
     tlog::success() << "Progress finished after " << tlog::durationToString(progress.duration());
+
+    auto scopedLogger = tlog::Logger("inner scope");
+    scopedLogger.info("This info message is written by a scoped logger.");
+    progress = scopedLogger.progress(N);
+    for (int i = 1; i <= N; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        progress.update(i);
+    }
+    scopedLogger.success("Now you know how to use scoped loggers!");
 
     tlog::success() << "The demo application terminated successfully. Hooray!";
 }
