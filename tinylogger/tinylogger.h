@@ -10,8 +10,8 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <set>
+#include <sstream>
 
 #ifdef _WIN32
 #   define NOMINMAX
@@ -88,6 +88,14 @@ namespace tlog {
     }
 
     inline std::string progressBar(uint64_t current, uint64_t total, duration_t duration, int width) {
+        if (total == 0) {
+            throw std::invalid_argument{"Progress: total must not be zero."};
+        }
+
+        if (current > total) {
+            throw std::invalid_argument{"Progress: current must not be larger than total"};
+        }
+
         double fraction = (double)current / total;
 
         // Percentage display. Looks like so:
