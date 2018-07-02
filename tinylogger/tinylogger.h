@@ -210,7 +210,7 @@ namespace tlog {
 
     class ConsoleOutput : public IOutput {
     public:
-        ~ConsoleOutput() {
+        virtual ~ConsoleOutput() {
             if (mSupportsAnsiControlSequences) {
                 std::cout << ansi::WHITE;
             }
