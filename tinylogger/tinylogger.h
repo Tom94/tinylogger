@@ -183,6 +183,7 @@ namespace tlog {
     namespace ansi {
         const std::string ESC = "\033";
 
+        const std::string RESET = ESC + "[0m";
         const std::string LINE_BEGIN = ESC + "[0G";
         const std::string ERASE_TO_END_OF_LINE = ESC + "[K";
 
@@ -212,7 +213,7 @@ namespace tlog {
     public:
         virtual ~ConsoleOutput() {
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::WHITE;
+                std::cout << ansi::RESET;
             }
         }
 
@@ -255,13 +256,13 @@ namespace tlog {
             }
 
             if (mSupportsAnsiControlSequences && severity != ESeverity::None) {
-                textOut += ansi::WHITE;
+                textOut += ansi::RESET;
             }
 
             textOut += line;
 
             if (mSupportsAnsiControlSequences) {
-                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::WHITE;
+                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::RESET;
             }
 
             // Make sure there is a linebreak in the end. We don't want duplicates!
@@ -300,7 +301,7 @@ namespace tlog {
         ConsoleOutput() {
             mSupportsAnsiControlSequences = enableAnsiControlSequences();
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::WHITE;
+                std::cout << ansi::RESET;
             }
         }
 
