@@ -1,7 +1,7 @@
 # This file was developed by Thomas Müller <thomas94@gmx.net>.
 # It is published under the BSD 3-Clause License within the LICENSE.md file.
 
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 2.8.12)
 
 project(tinylogger)
 if (MSVC)
