@@ -306,6 +306,11 @@ namespace tlog {
         }
 
         static bool enableAnsiControlSequences() {
+            char* noColorEnv = getenv("NO_COLOR");
+            if (noColorEnv && noColorEnv[0] != '\0') {
+                return false;
+            }
+
 #ifdef _WIN32
             // Set output mode to handle virtual terminal sequences
             HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
