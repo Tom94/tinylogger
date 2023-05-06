@@ -1,5 +1,5 @@
 
-Copyright (c) 2018-2023, Thomas Müller <thomas@tom94.net>
+Copyright (c) 2018-2023, Thomas Müller <thomas94@gmx.net>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
