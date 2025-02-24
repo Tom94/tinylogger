@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <set>
@@ -47,7 +46,10 @@ namespace tlog {
 
     inline std::string timeToString(const std::string& fmt, time_t time) {
         char timeStr[128];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
         if (std::strftime(timeStr, 128, fmt.c_str(), localtime(&time)) == 0) {
+#pragma GCC diagnostic pop
             throw std::runtime_error{"Could not render local time."};
         }
 
@@ -167,7 +169,7 @@ namespace tlog {
             case ESeverity::Error:    return "ERROR";
             case ESeverity::Progress: return "PROGRESS";
             default:                  return "";
-        };
+        }
     }
 
     class IOutput {
