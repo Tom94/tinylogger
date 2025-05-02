@@ -46,10 +46,14 @@ namespace tlog {
 
     inline std::string timeToString(const std::string& fmt, time_t time) {
         char timeStr[128];
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
         if (std::strftime(timeStr, 128, fmt.c_str(), localtime(&time)) == 0) {
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
             throw std::runtime_error{"Could not render local time."};
         }
 
