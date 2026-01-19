@@ -220,7 +220,7 @@ namespace tlog {
     public:
         virtual ~ConsoleOutput() {
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::RESET;
+                std::cerr << ansi::RESET;
             }
         }
 
@@ -279,8 +279,7 @@ namespace tlog {
                 textOut += '\n';
             }
 
-            auto& stream = severity == ESeverity::Warning || severity == ESeverity::Error ? std::cerr : std::cout;
-            stream << textOut << std::flush;
+            mStream << textOut << std::flush;
         }
 
         void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
@@ -305,14 +304,16 @@ namespace tlog {
         }
 
     private:
-        ConsoleOutput() {
-            mSupportsAnsiControlSequences = enableAnsiControlSequences();
+        ConsoleOutput(std::ostream& stream) : mStream{stream} {
+            mSupportsAnsiControlSequences = enableAnsiControlSequences(stream);
             if (mSupportsAnsiControlSequences) {
-                std::cout << ansi::RESET;
+                mStream << ansi::RESET;
             }
         }
 
-        static bool enableAnsiControlSequences() {
+        ConsoleOutput() : ConsoleOutput{std::cerr} {}
+
+        static bool enableAnsiControlSequences(const std::ostream& stream) {
             char* noColorEnv = getenv("NO_COLOR");
             if (noColorEnv && noColorEnv[0] != '\0') {
                 return false;
@@ -320,14 +321,16 @@ namespace tlog {
 
 #ifdef _WIN32
             // Set output mode to handle virtual terminal sequences
-            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            HANDLE hOut = GetStdHandle(&stream == &std::cerr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
             if (hOut == INVALID_HANDLE_VALUE) {
                 return false;
             }
+
             DWORD dwMode = 0;
             if (!GetConsoleMode(hOut, &dwMode)) {
                 return false;
             }
+
             dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             if (!SetConsoleMode(hOut, dwMode)) {
                 return false;
@@ -349,6 +352,7 @@ namespace tlog {
         }
 
         bool mSupportsAnsiControlSequences;
+        std::ostream& mStream;
     };
 
     class FileOutput : public IOutput {
@@ -366,22 +370,20 @@ namespace tlog {
 #endif
 
         void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
-            std::string textOut;
             if (severity != ESeverity::None) {
-                textOut += nowToString("%H:%M:%S ");
+                mFile << nowToString("%H:%M:%S ");
             }
 
             if (!scope.empty()) {
-                textOut += std::string{'['} + scope + "] ";
+                mFile << std::string{'['} << scope << "] ";
             }
 
-            textOut += severityToString(severity);
+            mFile << severityToString(severity);
             if (severity != ESeverity::None) {
-                textOut += ' ';
+                mFile << ' ';
             }
 
-            textOut += line + '\n';
-            mFile << textOut;
+            mFile << line << '\n';
         }
 
         void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
