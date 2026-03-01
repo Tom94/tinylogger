@@ -230,20 +230,21 @@ namespace tlog {
         }
 
         void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
-            std::string textOut;
+            // Write everything into an intermediate buffer first to avoid interleaving in multithreaded scenarios.
+            std::ostringstream textOut;
             if (severity != ESeverity::None) {
-                textOut += nowToString("%H:%M:%S ");
+                textOut << nowToString("%H:%M:%S ");
             }
 
             // Color for severities
             if (mSupportsAnsiControlSequences) {
                 switch (severity) {
-                    case ESeverity::Success:  textOut += ansi::GREEN;       break;
-                    case ESeverity::Info:     textOut += ansi::CYAN;        break;
-                    case ESeverity::Warning:  textOut += ansi::BOLD_YELLOW; break;
-                    case ESeverity::Debug:    textOut += ansi::MAGENTA;     break;
-                    case ESeverity::Error:    textOut += ansi::BOLD_RED;    break;
-                    case ESeverity::Progress: textOut += ansi::BLUE;        break;
+                    case ESeverity::Success:  textOut << ansi::GREEN;       break;
+                    case ESeverity::Info:     textOut << ansi::CYAN;        break;
+                    case ESeverity::Warning:  textOut << ansi::BOLD_YELLOW; break;
+                    case ESeverity::Debug:    textOut << ansi::MAGENTA;     break;
+                    case ESeverity::Error:    textOut << ansi::BOLD_RED;    break;
+                    case ESeverity::Progress: textOut << ansi::BLUE;        break;
                     default:                                                break;
                 }
             }
@@ -252,34 +253,34 @@ namespace tlog {
             if (severity != ESeverity::None) {
                 severityStr = padFromRight(severityStr, 9);
             }
-            textOut += severityStr;
+            textOut << severityStr;
 
             if (!scope.empty()) {
                 if (mSupportsAnsiControlSequences) {
-                    textOut += ansi::BOLD_WHITE;
+                    textOut << ansi::BOLD_WHITE;
                 }
 
-                textOut += std::string{'['} + scope + "] ";
+                textOut << "[" << scope << "] ";
             }
 
             if (mSupportsAnsiControlSequences && severity != ESeverity::None) {
-                textOut += ansi::RESET;
+                textOut << ansi::RESET;
             }
 
-            textOut += line;
+            textOut << line;
 
             if (mSupportsAnsiControlSequences) {
-                textOut += ansi::ERASE_TO_END_OF_LINE + ansi::RESET;
+                textOut << ansi::ERASE_TO_END_OF_LINE << ansi::RESET;
             }
 
             // Make sure there is a linebreak in the end. We don't want duplicates!
             if (mSupportsAnsiControlSequences && severity == ESeverity::Progress) {
-                textOut += ansi::LINE_BEGIN;
+                textOut << ansi::LINE_BEGIN;
             } else {
-                textOut += '\n';
+                textOut << "\n";
             }
 
-            mStream << textOut << std::flush;
+            mStream << textOut.view() << std::flush;
         }
 
         void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
