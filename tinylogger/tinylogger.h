@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <sstream>
 
@@ -281,7 +282,11 @@ namespace tlog {
                 textOut << "\n";
             }
 
-            mStream << textOut.view() << std::flush;
+            const auto lock = std::scoped_lock{mMutex};
+
+            // The flush is somewhat slow, but necessary to ensure log messages can be reliably
+            // used to debug program crashes.
+            mStream << std::move(textOut).str() << std::flush;
         }
 
         void writeProgress(std::string_view scope, uint64_t current, uint64_t total, duration_t duration) override {
@@ -355,6 +360,7 @@ namespace tlog {
 
         bool mSupportsAnsiControlSequences;
         std::ostream& mStream;
+        std::mutex mMutex;
     };
 
     class FileOutput : public IOutput {
@@ -372,20 +378,24 @@ namespace tlog {
 #endif
 
         void writeLine(std::string_view scope, ESeverity severity, std::string_view line) override {
+            std::ostringstream textOut;
             if (severity != ESeverity::None) {
-                mFile << nowToString("%H:%M:%S ");
+                textOut << nowToString("%H:%M:%S ");
             }
 
             if (!scope.empty()) {
-                mFile << std::string{'['} << scope << "] ";
+                textOut << "[" << scope << "] ";
             }
 
-            mFile << severityToString(severity);
+            textOut << severityToString(severity);
             if (severity != ESeverity::None) {
-                mFile << ' ';
+                textOut << " ";
             }
 
-            mFile << line << '\n';
+            textOut << "\n";
+
+            const auto lock = std::scoped_lock{mMutex};
+            mFile << std::move(textOut).str();
         }
 
         void writeProgress(std::string_view scope, uint64_t current, uint64_t total, duration_t duration) override {
@@ -394,6 +404,7 @@ namespace tlog {
 
     private:
         std::ofstream mFile;
+        std::mutex mMutex;
     };
 
 
