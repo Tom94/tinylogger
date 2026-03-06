@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -178,8 +179,8 @@ namespace tlog {
 
     class IOutput {
     public:
-        virtual void writeLine(const std::string& scope, ESeverity severity, const std::string& line) = 0;
-        virtual void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) = 0;
+        virtual void writeLine(std::string_view scope, ESeverity severity, std::string_view line) = 0;
+        virtual void writeProgress(std::string_view scope, uint64_t current, uint64_t total, duration_t duration) = 0;
     };
 
 
@@ -229,7 +230,7 @@ namespace tlog {
             return consoleOutput;
         }
 
-        void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
+        void writeLine(std::string_view scope, ESeverity severity, std::string_view line) override {
             // Write everything into an intermediate buffer first to avoid interleaving in multithreaded scenarios.
             std::ostringstream textOut;
             if (severity != ESeverity::None) {
@@ -283,7 +284,7 @@ namespace tlog {
             mStream << textOut.view() << std::flush;
         }
 
-        void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
+        void writeProgress(std::string_view scope, uint64_t current, uint64_t total, duration_t duration) override {
             int progressBarWidth = consoleWidth() - 18; // 18 is the width of the time string and severity
 
             if (!scope.empty()) {
@@ -370,7 +371,7 @@ namespace tlog {
         FileOutput(std::ofstream&& file) : mFile{std::move(file)} {}
 #endif
 
-        void writeLine(const std::string& scope, ESeverity severity, const std::string& line) override {
+        void writeLine(std::string_view scope, ESeverity severity, std::string_view line) override {
             if (severity != ESeverity::None) {
                 mFile << nowToString("%H:%M:%S ");
             }
@@ -387,7 +388,7 @@ namespace tlog {
             mFile << line << '\n';
         }
 
-        void writeProgress(const std::string& scope, uint64_t current, uint64_t total, duration_t duration) override {
+        void writeProgress(std::string_view scope, uint64_t current, uint64_t total, duration_t duration) override {
             writeLine(scope, ESeverity::Progress, progressBar(current, total, duration, 80));
         }
 
@@ -467,7 +468,7 @@ namespace tlog {
         Stream error()   { return log(ESeverity::Error);   }
         Stream success() { return log(ESeverity::Success); }
 
-        void log(ESeverity severity, const std::string& line) {
+        void log(ESeverity severity, std::string_view line) {
             if (mHiddenSeverities.count(severity)) {
                 return;
             }
@@ -477,12 +478,24 @@ namespace tlog {
             }
         }
 
-        void none(const std::string& line)    { log(ESeverity::None,    line); }
-        void info(const std::string& line)    { log(ESeverity::Info,    line); }
-        void debug(const std::string& line)   { log(ESeverity::Debug,   line); }
-        void warning(const std::string& line) { log(ESeverity::Warning, line); }
-        void error(const std::string& line)   { log(ESeverity::Error,   line); }
-        void success(const std::string& line) { log(ESeverity::Success, line); }
+        template <typename... Args>
+        void log(ESeverity severity, std::format_string<Args...> fmt, Args&&... args) {
+            log(severity, std::string_view{std::format(fmt, std::forward<Args>(args)...)});
+        }
+
+        void none(std::string_view line)    { log(ESeverity::None,    line); }
+        void info(std::string_view line)    { log(ESeverity::Info,    line); }
+        void debug(std::string_view line)   { log(ESeverity::Debug,   line); }
+        void warning(std::string_view line) { log(ESeverity::Warning, line); }
+        void error(std::string_view line)   { log(ESeverity::Error,   line); }
+        void success(std::string_view line) { log(ESeverity::Success, line); }
+
+        template <typename... Args> void none(std::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::None,    fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void info(std::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::Info,    fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void debug(std::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Debug,   fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void warning(std::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Warning, fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void error(std::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Error,   fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void success(std::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Success, fmt, std::forward<Args>(args)...); }
 
         Progress progress(uint64_t total) {
             return Progress{this, total};
@@ -519,7 +532,7 @@ namespace tlog {
 
     inline Stream::~Stream() {
         if (mText) {
-            mLogger->log(mSeverity, mText->str());
+            mLogger->log(mSeverity, mText->view());
         }
     }
 
@@ -537,16 +550,28 @@ namespace tlog {
     inline Stream error()   { return Logger::global()->error();   }
     inline Stream success() { return Logger::global()->success(); }
 
-    inline void log(ESeverity severity, const std::string& line) {
+    inline void log(ESeverity severity, std::string_view line) {
         Logger::global()->log(severity, line);
     }
 
-    inline void none(const std::string& line)    { Logger::global()->none(line);    }
-    inline void info(const std::string& line)    { Logger::global()->info(line);    }
-    inline void debug(const std::string& line)   { Logger::global()->debug(line);   }
-    inline void warning(const std::string& line) { Logger::global()->warning(line); }
-    inline void error(const std::string& line)   { Logger::global()->error(line);   }
-    inline void success(const std::string& line) { Logger::global()->success(line); }
+    template <typename... Args>
+    void log(ESeverity severity, std::format_string<Args...> fmt, Args&&... args) {
+        Logger::global()->log(severity, fmt, std::forward<Args>(args)...);
+    }
+
+    inline void none(std::string_view line)    { Logger::global()->none(line);    }
+    inline void info(std::string_view line)    { Logger::global()->info(line);    }
+    inline void debug(std::string_view line)   { Logger::global()->debug(line);   }
+    inline void warning(std::string_view line) { Logger::global()->warning(line); }
+    inline void error(std::string_view line)   { Logger::global()->error(line);   }
+    inline void success(std::string_view line) { Logger::global()->success(line); }
+
+    template <typename... Args> void none(std::format_string<Args...> fmt, Args&&... args)    { Logger::global()->none(fmt, std::forward<Args>(args)...);    }
+    template <typename... Args> void info(std::format_string<Args...> fmt, Args&&... args)    { Logger::global()->info(fmt, std::forward<Args>(args)...);    }
+    template <typename... Args> void debug(std::format_string<Args...> fmt, Args&&... args)   { Logger::global()->debug(fmt, std::forward<Args>(args)...);   }
+    template <typename... Args> void warning(std::format_string<Args...> fmt, Args&&... args) { Logger::global()->warning(fmt, std::forward<Args>(args)...); }
+    template <typename... Args> void error(std::format_string<Args...> fmt, Args&&... args)   { Logger::global()->error(fmt, std::forward<Args>(args)...);   }
+    template <typename... Args> void success(std::format_string<Args...> fmt, Args&&... args) { Logger::global()->success(fmt, std::forward<Args>(args)...); }
 
     inline Progress progress(uint64_t total) { return Logger::global()->progress(total); }
 

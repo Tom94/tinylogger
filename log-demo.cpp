@@ -23,6 +23,12 @@ int main() {
         << "The purpose of this message is to make sure line breaks do not break anything (get it?). "
         << "This sentence only exists to make this message even longer.";
 
+    tlog::info(
+        "You can also put a std::format/std::print compatible {} string into the log call: {}",
+        "format",
+        42
+    );
+
     tlog::info() << "Demonstrating a progress bar...";
 
     static const int N = 100;
