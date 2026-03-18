@@ -392,7 +392,7 @@ namespace tlog {
                 textOut << " ";
             }
 
-            textOut << "\n";
+            textOut << line << "\n";
 
             const auto lock = std::scoped_lock{mMutex};
             mFile << std::move(textOut).str();
