@@ -3,10 +3,12 @@
 
 #pragma once
 
+#define FMT_HEADER_ONLY 1
+#include "fmt/include/fmt/core.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <format>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -490,8 +492,8 @@ namespace tlog {
         }
 
         template <typename... Args>
-        void log(ESeverity severity, std::format_string<Args...> fmt, Args&&... args) {
-            log(severity, std::string_view{std::format(fmt, std::forward<Args>(args)...)});
+        void log(ESeverity severity, fmt::format_string<Args...> fmt, Args&&... args) {
+            log(severity, std::string_view{fmt::format(fmt, std::forward<Args>(args)...)});
         }
 
         void none(std::string_view line)    { log(ESeverity::None,    line); }
@@ -501,12 +503,12 @@ namespace tlog {
         void error(std::string_view line)   { log(ESeverity::Error,   line); }
         void success(std::string_view line) { log(ESeverity::Success, line); }
 
-        template <typename... Args> void none(std::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::None,    fmt, std::forward<Args>(args)...); }
-        template <typename... Args> void info(std::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::Info,    fmt, std::forward<Args>(args)...); }
-        template <typename... Args> void debug(std::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Debug,   fmt, std::forward<Args>(args)...); }
-        template <typename... Args> void warning(std::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Warning, fmt, std::forward<Args>(args)...); }
-        template <typename... Args> void error(std::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Error,   fmt, std::forward<Args>(args)...); }
-        template <typename... Args> void success(std::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Success, fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void none(fmt::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::None,    fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void info(fmt::format_string<Args...> fmt, Args&&... args)    { log(ESeverity::Info,    fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void debug(fmt::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Debug,   fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void warning(fmt::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Warning, fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void error(fmt::format_string<Args...> fmt, Args&&... args)   { log(ESeverity::Error,   fmt, std::forward<Args>(args)...); }
+        template <typename... Args> void success(fmt::format_string<Args...> fmt, Args&&... args) { log(ESeverity::Success, fmt, std::forward<Args>(args)...); }
 
         Progress progress(uint64_t total) {
             return Progress{this, total};
@@ -566,7 +568,7 @@ namespace tlog {
     }
 
     template <typename... Args>
-    void log(ESeverity severity, std::format_string<Args...> fmt, Args&&... args) {
+    void log(ESeverity severity, fmt::format_string<Args...> fmt, Args&&... args) {
         Logger::global()->log(severity, fmt, std::forward<Args>(args)...);
     }
 
@@ -577,12 +579,12 @@ namespace tlog {
     inline void error(std::string_view line)   { Logger::global()->error(line);   }
     inline void success(std::string_view line) { Logger::global()->success(line); }
 
-    template <typename... Args> void none(std::format_string<Args...> fmt, Args&&... args)    { Logger::global()->none(fmt, std::forward<Args>(args)...);    }
-    template <typename... Args> void info(std::format_string<Args...> fmt, Args&&... args)    { Logger::global()->info(fmt, std::forward<Args>(args)...);    }
-    template <typename... Args> void debug(std::format_string<Args...> fmt, Args&&... args)   { Logger::global()->debug(fmt, std::forward<Args>(args)...);   }
-    template <typename... Args> void warning(std::format_string<Args...> fmt, Args&&... args) { Logger::global()->warning(fmt, std::forward<Args>(args)...); }
-    template <typename... Args> void error(std::format_string<Args...> fmt, Args&&... args)   { Logger::global()->error(fmt, std::forward<Args>(args)...);   }
-    template <typename... Args> void success(std::format_string<Args...> fmt, Args&&... args) { Logger::global()->success(fmt, std::forward<Args>(args)...); }
+    template <typename... Args> void none(fmt::format_string<Args...> fmt, Args&&... args)    { Logger::global()->none(fmt, std::forward<Args>(args)...);    }
+    template <typename... Args> void info(fmt::format_string<Args...> fmt, Args&&... args)    { Logger::global()->info(fmt, std::forward<Args>(args)...);    }
+    template <typename... Args> void debug(fmt::format_string<Args...> fmt, Args&&... args)   { Logger::global()->debug(fmt, std::forward<Args>(args)...);   }
+    template <typename... Args> void warning(fmt::format_string<Args...> fmt, Args&&... args) { Logger::global()->warning(fmt, std::forward<Args>(args)...); }
+    template <typename... Args> void error(fmt::format_string<Args...> fmt, Args&&... args)   { Logger::global()->error(fmt, std::forward<Args>(args)...);   }
+    template <typename... Args> void success(fmt::format_string<Args...> fmt, Args&&... args) { Logger::global()->success(fmt, std::forward<Args>(args)...); }
 
     inline Progress progress(uint64_t total) { return Logger::global()->progress(total); }
 
