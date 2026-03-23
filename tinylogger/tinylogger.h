@@ -13,8 +13,9 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <set>
+#include <span>
 #include <sstream>
+#include <vector>
 
 #ifdef _WIN32
 #   ifndef NOMINMAX
@@ -30,6 +31,61 @@ namespace tlog {
       ///////////////////////////////////////
      /// Shared functions and interfaces ///
     ///////////////////////////////////////
+
+    template <typename E> struct enable_bitmask : std::false_type {};
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E operator|(E a, E b) {
+        using U = std::underlying_type_t<E>;
+        return static_cast<E>(static_cast<U>(a) | static_cast<U>(b));
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E operator&(E a, E b) {
+        using U = std::underlying_type_t<E>;
+        return static_cast<E>(static_cast<U>(a) & static_cast<U>(b));
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E operator^(E a, E b) {
+        using U = std::underlying_type_t<E>;
+        return static_cast<E>(static_cast<U>(a) ^ static_cast<U>(b));
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E operator~(E a) {
+        using U = std::underlying_type_t<E>;
+        return static_cast<E>(~static_cast<U>(a));
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E& operator|=(E& a, E b) {
+        return a = a | b;
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E& operator&=(E& a, E b) {
+        return a = a & b;
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr E& operator^=(E& a, E b) {
+        return a = a ^ b;
+    }
+
+    template <typename E>
+        requires enable_bitmask<E>::value
+    constexpr bool hasFlag(E mask, E flag) {
+        using U = std::underlying_type_t<E>;
+        return (static_cast<U>(mask) & static_cast<U>(flag)) == static_cast<U>(flag);
+    }
 
     // No need to be beyond microseconds accuracy
     using duration_t = std::chrono::microseconds;
@@ -159,14 +215,16 @@ namespace tlog {
     }
 
     enum class ESeverity {
-        None,
-        Info,
-        Debug,
-        Warning,
-        Error,
-        Success,
-        Progress,
+        None = 1 << 0,
+        Info = 1 << 1,
+        Debug = 1 << 2,
+        Warning = 1 << 3,
+        Error = 1 << 4,
+        Success = 1 << 5,
+        Progress = 1 << 6,
     };
+
+    template <> struct enable_bitmask<ESeverity> : std::true_type {};
 
     inline std::string severityToString(ESeverity severity) {
         switch (severity) {
@@ -458,17 +516,17 @@ namespace tlog {
 
     class Logger {
     public:
-        Logger(std::string scope = "", std::set<std::shared_ptr<IOutput>> outputs = {ConsoleOutput::global()})
+        Logger(std::string scope, std::vector<std::shared_ptr<IOutput>> outputs = {ConsoleOutput::global()})
         : mOutputs{outputs}, mScope{scope} {
 #ifdef NDEBUG
             hideSeverity(ESeverity::Debug);
 #endif
         }
 
-        Logger(std::set<std::shared_ptr<IOutput>> outputs) : Logger("", outputs) {}
+        Logger(std::vector<std::shared_ptr<IOutput>> outputs = {ConsoleOutput::global()}) : Logger{"", outputs} {}
 
         static std::unique_ptr<Logger>& global() {
-            static auto logger = std::unique_ptr<Logger>(new Logger({ConsoleOutput::global()}));
+            static auto logger = std::unique_ptr<Logger>(new Logger);
             return logger;
         }
 
@@ -482,7 +540,7 @@ namespace tlog {
         Stream success() { return log(ESeverity::Success); }
 
         void log(ESeverity severity, std::string_view line) {
-            if (mHiddenSeverities.count(severity)) {
+            if (hasFlag(mHiddenSeverities, severity)) {
                 return;
             }
 
@@ -493,6 +551,10 @@ namespace tlog {
 
         template <typename... Args>
         void log(ESeverity severity, fmt::format_string<Args...> fmt, Args&&... args) {
+            if (hasFlag(mHiddenSeverities, severity)) {
+                return;
+            }
+
             log(severity, std::string_view{fmt::format(fmt, std::forward<Args>(args)...)});
         }
 
@@ -516,7 +578,7 @@ namespace tlog {
 
         template <typename T>
         void progress(uint64_t current, uint64_t total, T duration) {
-            if (mHiddenSeverities.count(ESeverity::Progress)) {
+            if (hasFlag(mHiddenSeverities, ESeverity::Progress)) {
                 return;
             }
 
@@ -526,20 +588,25 @@ namespace tlog {
             }
         }
 
-        void hideSeverity(ESeverity severity) { mHiddenSeverities.insert(severity); }
-        void showSeverity(ESeverity severity) { mHiddenSeverities.erase(severity); }
-        const std::set<ESeverity>& hiddenSeverities() const { return mHiddenSeverities; }
+        void hideSeverity(ESeverity severity) { mHiddenSeverities |= severity; }
+        void showSeverity(ESeverity severity) { mHiddenSeverities &= ~severity; }
+        ESeverity hiddenSeverities() const { return mHiddenSeverities; }
 
-        void addOutput(std::shared_ptr<IOutput>& output) { mOutputs.insert(output); }
-        void removeOutput(std::shared_ptr<IOutput>& output) { mOutputs.erase(output); }
-        const std::set<std::shared_ptr<IOutput>>& outputs() const { return mOutputs; }
+        void addOutput(std::shared_ptr<IOutput>& output) {
+            if (std::find(mOutputs.begin(), mOutputs.end(), output) == mOutputs.end()) {
+                mOutputs.emplace_back(output);
+            }
+        }
+
+        void removeOutput(std::shared_ptr<IOutput>& output) { std::erase(mOutputs, output); }
+        std::span<const std::shared_ptr<IOutput>> outputs() const { return mOutputs; }
 
         void setScope(const std::string& scope) { mScope = scope; }
         const std::string& scope() const { return mScope; }
 
     private:
-        std::set<ESeverity> mHiddenSeverities;
-        std::set<std::shared_ptr<IOutput>> mOutputs;
+        ESeverity mHiddenSeverities = static_cast<ESeverity>(0);
+        std::vector<std::shared_ptr<IOutput>> mOutputs;
         std::string mScope;
     };
 
