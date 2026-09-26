@@ -5,6 +5,7 @@
 
 #define FMT_HEADER_ONLY 1
 #include "fmt/include/fmt/core.h"
+#include "fmt/include/fmt/ranges.h"
 
 #include <algorithm>
 #include <chrono>
